@@ -2,5 +2,6 @@ __pycache__/
 *.pyc
 streamlit.log
 artifacts/model_bundle_baseline_backup.joblib
+artifacts/model_bundle_pre_2026_10_27_update.joblib
 .DS_Store
 screenshots/

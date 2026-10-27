@@ -187,7 +187,7 @@ section_card_open(SECTION_ACCENTS["admission"])
 
 c1, c2 = st.columns(2)
 with c1:
-    facility = st.selectbox("Facility", bundle["facility_list"], index=None, placeholder="Select...")
+    facility = st.selectbox("Facility (Optional)", bundle["facility_list"], index=None, placeholder="Select...")
     sex = st.selectbox(
         "Child's sex", cat["sex"], index=None, placeholder="Select...",
         format_func=lambda v: v.capitalize())
@@ -228,19 +228,15 @@ with c2:
 admission_vals = [facility, sex, cage_adm, sammam, region, mat_edu, whz_adm, muac_adm, haz_adm, hndwash_label, prev_wast]
 section_card_close(sum(v is not None for v in admission_vals), len(admission_vals), SECTION_ACCENTS["admission"])
 
-st.subheader("Household food security (for vulnerability index)")
+st.subheader("Household food security")
 section_card_open(SECTION_ACCENTS["food"])
-c3, c4 = st.columns(2)
-with c3:
-    ipc_phase = st.selectbox("IPC food security phase", cat["ipc_phase_fcs"], index=None, placeholder="Select...")
-with c4:
-    hhs = st.selectbox("Household hunger scale category", cat["hhs_category"], index=None, placeholder="Select...")
+ipc_phase = st.selectbox("IPC food security phase", cat["ipc_phase_fcs"], index=None, placeholder="Select...")
 
-food_vals = [ipc_phase, hhs]
+food_vals = [ipc_phase]
 section_card_close(sum(v is not None for v in food_vals), len(food_vals), SECTION_ACCENTS["food"])
 
 st.header("At discharge / first follow-up")
-st.caption("These three values are only known once the child has completed treatment and been seen for a first follow-up — consistent with how the source research paper collects them.")
+st.caption("These three values are only known once the child has completed treatment and been seen for a first follow-up, consistent with how the source research paper collects them.")
 section_card_open(SECTION_ACCENTS["discharge"])
 c5, c6 = st.columns(2)
 with c5:
@@ -257,8 +253,10 @@ with c6:
         min_value=float(rng["whz_adm_clean"][0]), max_value=float(rng["whz_adm_clean"][1]),
         value=None, placeholder=f"e.g. {rng['whz_adm_clean'][0]:.1f} to {rng['whz_adm_clean'][1]:.1f}")
     whz_tag(whz_t0)
+    oral_rehydration_label = st.selectbox(
+        "Oral rehydration given during treatment", ["Yes", "No"], index=None, placeholder="Select...")
 
-discharge_vals = [dur_trt, diar_t1, whz_t0]
+discharge_vals = [dur_trt, diar_t1, whz_t0, oral_rehydration_label]
 section_card_close(sum(v is not None for v in discharge_vals), len(discharge_vals), SECTION_ACCENTS["discharge"])
 
 st.divider()
@@ -277,10 +275,10 @@ if st.button("Predict relapse risk", type="primary"):
         "hndwash": None if hndwash_label is None else (1 if hndwash_label == "Yes" else 0),
         "prev_wast_treat": prev_wast,
         "ipc_phase_fcs": ipc_phase,
-        "hhs_category": hhs,
         "dur_trt": dur_trt,
         "diar_T1": diar_t1,
         "whz_T0": whz_t0,
+        "medication_oral_rehydration": None if oral_rehydration_label is None else (1 if oral_rehydration_label == "Yes" else 0),
     }
 
     field_labels = {
@@ -290,11 +288,14 @@ if st.button("Predict relapse risk", type="primary"):
         "whz_adm_clean": "WHZ at admission", "MUACofchildatadmission": "MUAC at admission",
         "haz_adm_clean": "HAZ at admission", "hndwash": "Household handwashing access",
         "prev_wast_treat": "Previous wasting treatment history",
-        "ipc_phase_fcs": "IPC food security phase", "hhs_category": "Household hunger scale category",
+        "ipc_phase_fcs": "IPC food security phase",
         "dur_trt": "Duration of treatment", "diar_T1": "Diarrhea at first follow-up",
         "whz_T0": "WHZ at first follow-up",
+        "medication_oral_rehydration": "Oral rehydration given during treatment",
     }
-    missing = [field_labels[k] for k, v in raw_input.items() if v is None]
+    # Facility is optional, left blank, the model falls back to the population-average
+    # facility risk instead of blocking the prediction.
+    missing = [field_labels[k] for k, v in raw_input.items() if v is None and k != "facility"]
 
     range_check_fields = {
         "cage_adm": "cage_adm",
@@ -316,7 +317,7 @@ if st.button("Predict relapse risk", type="primary"):
 
     if missing:
         st.error(
-            "Please fill in every field before predicting — the model isn't allowed to guess. "
+            "Please fill in every field before predicting, the model isn't allowed to guess. "
             "Missing: " + ", ".join(missing)
         )
     elif out_of_range:
@@ -390,7 +391,7 @@ if st.button("Predict relapse risk", type="primary"):
                     <div style="text-align:center; margin-top:-10px;">
                         <span style="background-color:{color}; color:#0B1220;
                             padding:4px 16px; border-radius:999px; font-weight:700; font-size:15px;">
-                            Relapse — {severity} severity
+                            Relapse, {severity} severity
                         </span>
                     </div>
                 </div>

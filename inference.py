@@ -47,9 +47,11 @@ def build_feature_row(raw_input, bundle):
         raw_input['whz_adm_clean'], raw_input['whz_T0'],
         bundle['WHZ_THRESH'], bundle['FLOOR_WHZ'])
 
+    # Household Vulnerability Index: IPC food security phase plus handwashing access.
+    # Hunger scale was dropped from this formula on 2026-10-27 after a direct test
+    # showed it changed model fit by 0.0022 at most, confirmed in Analysis 6.
     ipc_num = bundle['ipc_map'][raw_input['ipc_phase_fcs']]
-    hhs_num = bundle['hhs_map'][raw_input['hhs_category']]
-    vulnerability_index = ipc_num + hhs_num + (1 - raw_input['hndwash'])
+    vulnerability_index_no_hunger = ipc_num + (1 - raw_input['hndwash'])
 
     row = {
         'facility_relapse_rate_loo': facility_relapse_rate_loo,
@@ -61,7 +63,7 @@ def build_feature_row(raw_input, bundle):
         'dur_trt': raw_input['dur_trt'],
         'haz_adm_clean': raw_input['haz_adm_clean'],
         'whz_muac_discordance': whz_muac_discordance,
-        'vulnerability_index': vulnerability_index,
+        'vulnerability_index_no_hunger': vulnerability_index_no_hunger,
         'SAMMAM_SAM': 1 if raw_input['SAMMAM'] == 'SAM' else 0,
         'cluster0_flag_1': cluster0_flag,
         'sex_male': 1 if raw_input['sex'] == 'male' else 0,
@@ -69,6 +71,7 @@ def build_feature_row(raw_input, bundle):
         'prev_wast_treat_yes': 1 if raw_input['prev_wast_treat'] == 'yes' else 0,
         'mat_edu_dichot_none': 1 if raw_input['mat_edu_dichot'] == 'none' else 0,
         'hndwash_1.0': int(raw_input['hndwash']),
+        'medication_oral_rehydration_1.0': int(raw_input['medication_oral_rehydration']),
     }
     for region in ['Bari', 'Bay', 'Galgadud', 'Hiran', 'Lower_Juba', 'Mudug']:
         row[f'RegioCEGn_{region}'] = 1 if raw_input['RegioCEGn'] == region else 0
