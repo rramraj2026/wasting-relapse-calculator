@@ -399,10 +399,11 @@ if st.button("Predict relapse risk", type="primary"):
                 unsafe_allow_html=True,
             )
 
+            low_band_start = 40 if sammam == "MAM" else 50
             st.markdown(
-                """
+                f"""
                 <div style="display:flex; justify-content:center; gap:14px; margin-top:14px; font-size:13px; color:#94A3B8;">
-                    <span>🟡 Low: 50%–65%</span>
+                    <span>🟡 Low: {low_band_start}%–65%</span>
                     <span>🟠 Medium: 65%–80%</span>
                     <span>🔴 High: 80%+</span>
                 </div>
