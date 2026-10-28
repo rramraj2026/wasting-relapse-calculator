@@ -231,8 +231,9 @@ section_card_close(sum(v is not None for v in admission_vals), len(admission_val
 st.subheader("Household food security")
 section_card_open(SECTION_ACCENTS["food"])
 ipc_phase = st.selectbox("IPC food security phase", cat["ipc_phase_fcs"], index=None, placeholder="Select...")
+hhs_category = st.selectbox("Household hunger scale", cat["hhs_category"], index=None, placeholder="Select...")
 
-food_vals = [ipc_phase]
+food_vals = [ipc_phase, hhs_category]
 section_card_close(sum(v is not None for v in food_vals), len(food_vals), SECTION_ACCENTS["food"])
 
 st.header("At discharge / first follow-up")
@@ -275,6 +276,7 @@ if st.button("Predict relapse risk", type="primary"):
         "hndwash": None if hndwash_label is None else (1 if hndwash_label == "Yes" else 0),
         "prev_wast_treat": prev_wast,
         "ipc_phase_fcs": ipc_phase,
+        "hhs_category": hhs_category,
         "dur_trt": dur_trt,
         "diar_T1": diar_t1,
         "whz_T0": whz_t0,
@@ -288,7 +290,7 @@ if st.button("Predict relapse risk", type="primary"):
         "whz_adm_clean": "WHZ at admission", "MUACofchildatadmission": "MUAC at admission",
         "haz_adm_clean": "HAZ at admission", "hndwash": "Household handwashing access",
         "prev_wast_treat": "Previous wasting treatment history",
-        "ipc_phase_fcs": "IPC food security phase",
+        "ipc_phase_fcs": "IPC food security phase", "hhs_category": "Household hunger scale",
         "dur_trt": "Duration of treatment", "diar_T1": "Diarrhea at first follow-up",
         "whz_T0": "WHZ at first follow-up",
         "medication_oral_rehydration": "Oral rehydration given during treatment",
