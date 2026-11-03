@@ -17,99 +17,94 @@ def percentile_rank(reference_array, value):
     return float((reference_array <= value).mean())
 
 
-def build_feature_row(raw_input, bundle):
+def build_feature_row(raw_input, bundle, use_facility):
     """raw_input: dict of raw field values collected from the Streamlit form.
-    Returns a one-row DataFrame with the exact design-matrix columns the RSF model expects.
+    Returns a one-row DataFrame with the exact design-matrix columns the chosen
+    (facility-given or facility-blank) classifier expects, in the right order.
     """
     facility = raw_input['facility']
+    cage_adm = raw_input['cage_adm']
+    whz_adm = raw_input['whz_adm_clean']
+    muac_adm = raw_input['MUACofchildatadmission']
+    haz_adm = raw_input['haz_adm_clean']
+    dur_trt = raw_input['dur_trt']
+    whz_t0 = raw_input['whz_T0']
 
-    facility_relapse_rate_loo = bundle['facility_relapse_rate_lookup'].get(
-        facility, bundle['facility_pop_rate'])
-    facility_recovery_speed_loo = bundle['facility_recovery_speed_lookup'].get(
-        facility, bundle['facility_pop_gain_mean'])
+    whz_rank = percentile_rank(bundle['whz_reference'], whz_adm)
+    muac_rank = percentile_rank(bundle['muac_reference'], muac_adm)
+    whz_muac_discordance = abs(whz_rank - muac_rank)
+    wasting_severity_rank = 1 - (whz_rank + muac_rank) / 2
 
-    knn_cols = bundle['knn_base_cols']
-    knn_raw = pd.DataFrame([{c: raw_input[c] for c in knn_cols}])
-    knn_scaled = bundle['knn_scaler'].transform(knn_raw)
-    dist = np.linalg.norm(bundle['knn_reference_X'] - knn_scaled, axis=1)
-    nearest_idx = np.argsort(dist)[:15]
-    knn_local_relapse_risk = float(bundle['knn_reference_y'][nearest_idx].mean())
+    whz_recovery_pct = recovery_pct_single(whz_adm, whz_t0, bundle['WHZ_THRESH'], bundle['FLOOR_WHZ'])
+    whz_gain_per_day = (whz_t0 - whz_adm) / dur_trt if dur_trt else np.nan
 
-    clus_scaled = bundle['cluster_scaler'].transform(knn_raw)
+    clus_scaled = bundle['cluster_scaler'].transform([[whz_adm, muac_adm, dur_trt, cage_adm]])
     cluster_label = int(bundle['cluster_model'].predict(clus_scaled)[0])
     cluster0_flag = 1 if cluster_label == 0 else 0
 
-    whz_rank = percentile_rank(bundle['whz_reference'], raw_input['whz_adm_clean'])
-    muac_rank = percentile_rank(bundle['muac_reference'], raw_input['MUACofchildatadmission'])
-    whz_muac_discordance = abs(whz_rank - muac_rank)
-
-    whz_recovery_pct = recovery_pct_single(
-        raw_input['whz_adm_clean'], raw_input['whz_T0'],
-        bundle['WHZ_THRESH'], bundle['FLOOR_WHZ'])
-
-    # Household Vulnerability Index: food security phase, household hunger scale,
-    # and handwashing access, added into one score.
-    ipc_num = bundle['ipc_map'][raw_input['ipc_phase_fcs']]
-    hhs_num = bundle['hhs_map'][raw_input['hhs_category']]
-    vulnerability_index = ipc_num + hhs_num + (1 - raw_input['hndwash'])
-
     row = {
-        'facility_relapse_rate_loo': facility_relapse_rate_loo,
-        'knn_local_relapse_risk': knn_local_relapse_risk,
-        'facility_recovery_speed_loo': facility_recovery_speed_loo,
-        'whz_adm_clean': raw_input['whz_adm_clean'],
+        'wasting_severity_rank': wasting_severity_rank,
+        'whz_adm_clean': whz_adm,
+        'double_burden': 1.0 if (whz_adm < -2 and haz_adm < -2) else 0.0,
+        'whz_adm_below_neg3': 1.0 if whz_adm < -3 else 0.0,
+        'whz_followup_below_neg2': 1.0 if whz_t0 < -2 else 0.0,
+        'MUACofchildatadmission': muac_adm,
+        'cluster0_flag': cluster0_flag,
+        'dur_trt': dur_trt,
+        'whz_gain_per_day': whz_gain_per_day,
         'whz_recovery_pct': whz_recovery_pct,
-        'MUACofchildatadmission': raw_input['MUACofchildatadmission'],
-        'dur_trt': raw_input['dur_trt'],
-        'haz_adm_clean': raw_input['haz_adm_clean'],
+        'muac_adm_below_125': 1.0 if muac_adm < bundle['MUAC_THRESH'] else 0.0,
+        'haz_adm_clean': haz_adm,
+        'young_child_lt12m': 1.0 if cage_adm < 12 else 0.0,
+        'hndwash': int(raw_input['hndwash']),
+        'age_x_whz_adm': cage_adm * whz_adm,
+        'whz_followup': whz_t0,
         'whz_muac_discordance': whz_muac_discordance,
-        'vulnerability_index': vulnerability_index,
         'SAMMAM_SAM': 1 if raw_input['SAMMAM'] == 'SAM' else 0,
-        'cluster0_flag_1': cluster0_flag,
-        'sex_male': 1 if raw_input['sex'] == 'male' else 0,
         'diar_T1_yes': 1 if raw_input['diar_T1'] == 'yes' else 0,
+        'sex_male': 1 if raw_input['sex'] == 'male' else 0,
         'prev_wast_treat_yes': 1 if raw_input['prev_wast_treat'] == 'yes' else 0,
         'mat_edu_dichot_none': 1 if raw_input['mat_edu_dichot'] == 'none' else 0,
-        'hndwash_1.0': int(raw_input['hndwash']),
-        'medication_oral_rehydration_1.0': int(raw_input['medication_oral_rehydration']),
     }
     for region in ['Bari', 'Bay', 'Galgadud', 'Hiran', 'Lower_Juba', 'Mudug']:
         row[f'RegioCEGn_{region}'] = 1 if raw_input['RegioCEGn'] == region else 0
 
+    if use_facility:
+        for name in ('fac_any_loo', 'fac_sam_loo', 'facility_recovery_speed_loo'):
+            lut = bundle['facility_lookups'][name]
+            row[name] = lut['by_facility'].get(facility, lut['population_rate'])
+
+    knn_cols = bundle['knn_base_cols']
+    values_by_name = {'whz_adm_clean': whz_adm, 'MUACofchildatadmission': muac_adm,
+                       'dur_trt': dur_trt, 'cage_adm': cage_adm}
+    knn_raw = np.array([[values_by_name[c] for c in knn_cols]])
+    knn_scaled = bundle['knn_scaler'].transform(knn_raw)
+    dist = np.linalg.norm(bundle['knn_reference_X'] - knn_scaled, axis=1)
+    nearest_idx = np.argsort(dist)[:bundle['knn_k']]
+    neighbor_labels = bundle['knn_reference_y'][nearest_idx]
+    row['knn_any_loo'] = float((neighbor_labels > 0).mean())
+    row['knn_sam_loo'] = float((neighbor_labels == 2).mean())
+
+    columns = bundle['columns_facility_given'] if use_facility else bundle['columns_facility_blank']
     X = pd.DataFrame([row])
-    X = X.reindex(columns=bundle['design_columns'], fill_value=0)
+    X = X.reindex(columns=columns, fill_value=0)
     return X
 
 
-def predict_relapse_risk(raw_input, bundle, horizon_days=182):
-    X = build_feature_row(raw_input, bundle)
-    rsf = bundle['rsf_model']
+def predict_relapse_risk(raw_input, bundle):
+    facility = raw_input.get('facility')
+    use_facility = facility is not None and facility in bundle['facility_lookups']['fac_any_loo']['by_facility']
 
-    surv_funcs = rsf.predict_survival_function(X)
-    sf = surv_funcs[0]
-    survival_at_horizon = float(sf(horizon_days))
-    risk_pct = (1 - survival_at_horizon) * 100
+    model = bundle['model_facility_given'] if use_facility else bundle['model_facility_blank']
+    X = build_feature_row(raw_input, bundle, use_facility)
 
-    # MAM cases run about 10 points lower than SAM on this scale for the same underlying
-    # risk, so a single 50% line misses most real MAM relapses. Tested directly against
-    # recorded outcomes on 2026-10-27: a 40% line for MAM raises MAM sensitivity from 44%
-    # to 73% (matching SAM's 74%) while MAM's own overall accuracy also improves, 74% to
-    # 77%. SAM keeps the original 50% line, unaffected.
-    relapse_threshold = 40 if raw_input.get('SAMMAM') == 'MAM' else 50
-    band = 'Relapse' if risk_pct >= relapse_threshold else 'No Relapse'
-
-    severity = None
-    if band == 'Relapse':
-        if risk_pct < 65:
-            severity = 'Low'
-        elif risk_pct < 80:
-            severity = 'Medium'
-        else:
-            severity = 'High'
+    proba = model.predict_proba(X)[0]
+    class_names = bundle['class_names']
+    probabilities = {name: float(p) for name, p in zip(class_names, proba)}
+    predicted_class = class_names[int(np.argmax(proba))]
 
     return {
-        'risk_pct': risk_pct,
-        'band': band,
-        'severity': severity,
-        'horizon_days': horizon_days,
+        'probabilities': probabilities,
+        'predicted_class': predicted_class,
+        'used_facility': use_facility,
     }

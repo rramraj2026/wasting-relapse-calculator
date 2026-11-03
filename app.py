@@ -8,12 +8,9 @@ from inference import predict_relapse_risk
 
 ARTIFACT_PATH = os.path.join(os.path.dirname(__file__), "artifacts", "model_bundle.joblib")
 
-BAND_COLORS = {"No Relapse": "#22C55E", "Relapse": "#F87171"}
-BAND_ZONES = {"No Relapse": "#052E16", "Relapse": "#450A0A"}
-SEVERITY_COLORS = {"Low": "#FBBF24", "Medium": "#FB923C", "High": "#F87171"}
-SEVERITY_ZONES = {"Low": "#3F2D05", "Medium": "#431407", "High": "#450A0A"}
+CLASS_COLORS = {"No relapse": "#22C55E", "Relapse to MAM": "#FB923C", "Relapse to SAM": "#F87171"}
 CARD_BG = "#111827"
-SECTION_ACCENTS = {"admission": "#3B82F6", "food": "#06B6D4", "discharge": "#8B5CF6"}
+SECTION_ACCENTS = {"admission": "#3B82F6", "discharge": "#8B5CF6"}
 
 
 def hex_to_rgba(hex_color, alpha):
@@ -130,34 +127,23 @@ def inject_global_style():
 inject_global_style()
 
 
-def risk_gauge(risk_pct, severity):
-    color = SEVERITY_COLORS[severity]
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=risk_pct,
-        number={"suffix": "%", "font": {"size": 44, "color": color}},
-        title={"text": "6-Month Relapse Risk", "font": {"size": 18, "color": "#E5E7EB"}},
-        gauge={
-            "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": "#64748B", "tickfont": {"color": "#94A3B8"}},
-            "bar": {"color": color, "thickness": 0.3},
-            "bgcolor": CARD_BG,
-            "borderwidth": 0,
-            "steps": [
-                {"range": [0, 50], "color": BAND_ZONES["No Relapse"]},
-                {"range": [50, 65], "color": SEVERITY_ZONES["Low"]},
-                {"range": [65, 80], "color": SEVERITY_ZONES["Medium"]},
-                {"range": [80, 100], "color": SEVERITY_ZONES["High"]},
-            ],
-            "threshold": {
-                "line": {"color": "#E5E7EB", "width": 3},
-                "thickness": 0.85,
-                "value": risk_pct,
-            },
-        },
+def probability_chart(probabilities):
+    classes = list(probabilities.keys())
+    values = [probabilities[c] * 100 for c in classes]
+    colors = [CLASS_COLORS[c] for c in classes]
+    fig = go.Figure(go.Bar(
+        x=values, y=classes, orientation="h",
+        marker=dict(color=colors),
+        text=[f"{v:.0f}%" for v in values], textposition="outside",
+        textfont=dict(color="#E5E7EB", size=14),
     ))
     fig.update_layout(
-        height=320, margin=dict(l=30, r=30, t=60, b=10), paper_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, sans-serif"))
+        height=220, margin=dict(l=10, r=40, t=20, b=10),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(range=[0, 100], showgrid=False, showticklabels=False, zeroline=False),
+        yaxis=dict(tickfont=dict(color="#E5E7EB", size=14)),
+        font=dict(family="Inter, sans-serif"),
+    )
     return fig
 
 
@@ -175,7 +161,8 @@ st.markdown(
     <div style="padding: 18px 0 6px 0;">
         <h1 style="margin-bottom:4px; color:#F1F5F9;">🩺 Wasting Relapse Risk Calculator</h1>
         <p style="color:#94A3B8; font-size:15px; margin-top:0;">
-            Estimates a child's risk of relapsing (to MAM or SAM) within 6 months of discharge.
+            Estimates whether a child is likely to relapse, and if so whether to MAM or SAM,
+            within 6 months of discharge.
         </p>
     </div>
     """,
@@ -228,16 +215,8 @@ with c2:
 admission_vals = [facility, sex, cage_adm, sammam, region, mat_edu, whz_adm, muac_adm, haz_adm, hndwash_label, prev_wast]
 section_card_close(sum(v is not None for v in admission_vals), len(admission_vals), SECTION_ACCENTS["admission"])
 
-st.subheader("Household food security")
-section_card_open(SECTION_ACCENTS["food"])
-ipc_phase = st.selectbox("IPC food security phase", cat["ipc_phase_fcs"], index=None, placeholder="Select...")
-hhs_category = st.selectbox("Household hunger scale", cat["hhs_category"], index=None, placeholder="Select...")
-
-food_vals = [ipc_phase, hhs_category]
-section_card_close(sum(v is not None for v in food_vals), len(food_vals), SECTION_ACCENTS["food"])
-
-st.header("At discharge / first follow-up")
-st.caption("These three values are only known once the child has completed treatment and been seen for a first follow-up, consistent with how the source research paper collects them.")
+st.header("At discharge")
+st.caption("These values are only known once the child has completed treatment and is discharged.")
 section_card_open(SECTION_ACCENTS["discharge"])
 c5, c6 = st.columns(2)
 with c5:
@@ -246,18 +225,16 @@ with c5:
         min_value=float(rng["dur_trt"][0]), max_value=float(rng["dur_trt"][1]),
         value=None, placeholder=f"e.g. {rng['dur_trt'][0]:.0f}-{rng['dur_trt'][1]:.0f} days")
     diar_t1 = st.selectbox(
-        "Diarrhea at first follow-up", cat["diar_T1"], index=None, placeholder="Select...",
+        "Diarrhea at discharge", cat["diar_T1"], index=None, placeholder="Select...",
         format_func=lambda v: v.capitalize())
 with c6:
     whz_t0 = st.number_input(
-        "Weight-for-Height Z-score at first follow-up (measured by facility staff)",
-        min_value=float(rng["whz_adm_clean"][0]), max_value=float(rng["whz_adm_clean"][1]),
-        value=None, placeholder=f"e.g. {rng['whz_adm_clean'][0]:.1f} to {rng['whz_adm_clean'][1]:.1f}")
+        "Weight-for-Height Z-score at discharge (measured by facility staff)",
+        min_value=float(rng["whz_T0"][0]), max_value=float(rng["whz_T0"][1]),
+        value=None, placeholder=f"e.g. {rng['whz_T0'][0]:.1f} to {rng['whz_T0'][1]:.1f}")
     whz_tag(whz_t0)
-    oral_rehydration_label = st.selectbox(
-        "Oral rehydration given during treatment", ["Yes", "No"], index=None, placeholder="Select...")
 
-discharge_vals = [dur_trt, diar_t1, whz_t0, oral_rehydration_label]
+discharge_vals = [dur_trt, diar_t1, whz_t0]
 section_card_close(sum(v is not None for v in discharge_vals), len(discharge_vals), SECTION_ACCENTS["discharge"])
 
 st.divider()
@@ -275,12 +252,9 @@ if st.button("Predict relapse risk", type="primary"):
         "haz_adm_clean": haz_adm,
         "hndwash": None if hndwash_label is None else (1 if hndwash_label == "Yes" else 0),
         "prev_wast_treat": prev_wast,
-        "ipc_phase_fcs": ipc_phase,
-        "hhs_category": hhs_category,
         "dur_trt": dur_trt,
         "diar_T1": diar_t1,
         "whz_T0": whz_t0,
-        "medication_oral_rehydration": None if oral_rehydration_label is None else (1 if oral_rehydration_label == "Yes" else 0),
     }
 
     field_labels = {
@@ -290,10 +264,8 @@ if st.button("Predict relapse risk", type="primary"):
         "whz_adm_clean": "WHZ at admission", "MUACofchildatadmission": "MUAC at admission",
         "haz_adm_clean": "HAZ at admission", "hndwash": "Household handwashing access",
         "prev_wast_treat": "Previous wasting treatment history",
-        "ipc_phase_fcs": "IPC food security phase", "hhs_category": "Household hunger scale",
-        "dur_trt": "Duration of treatment", "diar_T1": "Diarrhea at first follow-up",
-        "whz_T0": "WHZ at first follow-up",
-        "medication_oral_rehydration": "Oral rehydration given during treatment",
+        "dur_trt": "Duration of treatment", "diar_T1": "Diarrhea at discharge",
+        "whz_T0": "WHZ at discharge",
     }
     # Facility is optional, left blank, the model falls back to the population-average
     # facility risk instead of blocking the prediction.
@@ -305,7 +277,7 @@ if st.button("Predict relapse risk", type="primary"):
         "MUACofchildatadmission": "MUACofchildatadmission",
         "haz_adm_clean": "haz_adm_clean",
         "dur_trt": "dur_trt",
-        "whz_T0": "whz_adm_clean",
+        "whz_T0": "whz_T0",
     }
     out_of_range = []
     if not missing:
@@ -328,92 +300,46 @@ if st.button("Predict relapse risk", type="primary"):
             "give a reliable estimate here. Out of range: " + "; ".join(out_of_range)
         )
     else:
-        result = predict_relapse_risk(raw_input, bundle, horizon_days=182)
-        band = result["band"]
+        result = predict_relapse_risk(raw_input, bundle)
+        predicted = result["predicted_class"]
+        color = CLASS_COLORS[predicted]
+        glow_dim = hex_to_rgba(color, 0.22)
+        glow_bright = hex_to_rgba(color, 0.5)
+        icon = {"No relapse": "✅", "Relapse to MAM": "⚠️", "Relapse to SAM": "🔴"}[predicted]
 
-        if band == "No Relapse":
-            color = BAND_COLORS["No Relapse"]
-            glow_dim = hex_to_rgba(color, 0.22)
-            glow_bright = hex_to_rgba(color, 0.5)
-
-            st.markdown(
-                f"""
-                <style>
-                @keyframes pulseGlowGreen {{
-                    0%   {{ box-shadow: 0 0 25px {glow_dim}; }}
-                    50%  {{ box-shadow: 0 0 60px {glow_bright}; }}
-                    100% {{ box-shadow: 0 0 25px {glow_dim}; }}
-                }}
-                </style>
-                <div style="background:{CARD_BG}; border:1px solid rgba(255,255,255,0.08);
-                    border-radius:18px; padding:40px 10px; margin-top:8px; text-align:center;
-                    animation: pulseGlowGreen 2.4s ease-in-out infinite;">
-                    <div style="font-size:48px;">✅</div>
-                    <div style="margin-top:10px;">
-                        <span style="background-color:{color}; color:#0B1220;
-                            padding:6px 22px; border-radius:999px; font-weight:700; font-size:18px;">
-                            No Relapse
-                        </span>
-                    </div>
+        st.markdown(
+            f"""
+            <style>
+            @keyframes pulseGlowRelapse {{
+                0%   {{ box-shadow: 0 0 25px {glow_dim}; }}
+                50%  {{ box-shadow: 0 0 60px {glow_bright}; }}
+                100% {{ box-shadow: 0 0 25px {glow_dim}; }}
+            }}
+            </style>
+            <div style="background:{CARD_BG}; border:1px solid rgba(255,255,255,0.08);
+                border-radius:18px; padding:28px 10px 10px 10px; margin-top:8px; text-align:center;
+                animation: pulseGlowRelapse 2.4s ease-in-out infinite;">
+                <div style="font-size:40px;">{icon}</div>
+                <div style="margin-top:10px;">
+                    <span style="background-color:{color}; color:#0B1220;
+                        padding:6px 22px; border-radius:999px; font-weight:700; font-size:18px;">
+                        {predicted}
+                    </span>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
+        st.plotly_chart(probability_chart(result["probabilities"]), width="stretch")
+
+        if not result["used_facility"] and facility is not None:
             st.caption(
-                "This child is not flagged for relapse risk based on patterns learned from past cases "
-                "in this program."
-            )
-        else:
-            severity = result["severity"]
-            color = SEVERITY_COLORS[severity]
-            glow_dim = hex_to_rgba(color, 0.22)
-            glow_bright = hex_to_rgba(color, 0.55)
-
-            st.markdown(
-                f"""
-                <style>
-                @keyframes pulseGlow {{
-                    0%   {{ box-shadow: 0 0 25px {glow_dim}; }}
-                    50%  {{ box-shadow: 0 0 65px {glow_bright}; }}
-                    100% {{ box-shadow: 0 0 25px {glow_dim}; }}
-                }}
-                </style>
-                <div style="background:{CARD_BG}; border:1px solid rgba(255,255,255,0.08);
-                    border-radius:18px; padding:20px 10px 10px 10px; margin-top:8px;
-                    animation: pulseGlow 2.4s ease-in-out infinite;">
-                """,
-                unsafe_allow_html=True,
+                "This facility wasn't in the model's training data, so the estimate uses "
+                "region and child details only."
             )
 
-            st.plotly_chart(risk_gauge(result["risk_pct"], severity), width="stretch")
-
-            st.markdown(
-                f"""
-                    <div style="text-align:center; margin-top:-10px;">
-                        <span style="background-color:{color}; color:#0B1220;
-                            padding:4px 16px; border-radius:999px; font-weight:700; font-size:15px;">
-                            Relapse, {severity} severity
-                        </span>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            low_band_start = 40 if sammam == "MAM" else 50
-            st.markdown(
-                f"""
-                <div style="display:flex; justify-content:center; gap:14px; margin-top:14px; font-size:13px; color:#94A3B8;">
-                    <span>🟡 Low: {low_band_start}%–65%</span>
-                    <span>🟠 Medium: 65%–80%</span>
-                    <span>🔴 High: 80%+</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            st.caption(
-                "Risk reflects the probability of relapsing to MAM or SAM within 6 months of this visit, "
-                "based on patterns learned from past cases in this program."
-            )
+        st.caption(
+            "Estimated chance of no relapse, relapse to MAM, or relapse to SAM within 6 months "
+            "of discharge, based on patterns learned from past cases in this program."
+        )
