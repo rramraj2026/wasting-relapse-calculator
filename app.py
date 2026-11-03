@@ -1,7 +1,6 @@
 import os
 
 import joblib
-import plotly.graph_objects as go
 import streamlit as st
 
 from inference import predict_relapse_risk
@@ -128,26 +127,6 @@ def inject_global_style():
 
 
 inject_global_style()
-
-
-def probability_chart(probabilities):
-    classes = list(probabilities.keys())
-    values = [probabilities[c] * 100 for c in classes]
-    colors = [CLASS_COLORS[c] for c in classes]
-    fig = go.Figure(go.Bar(
-        x=values, y=classes, orientation="h",
-        marker=dict(color=colors),
-        text=[f"{v:.0f}%" for v in values], textposition="outside",
-        textfont=dict(color="#E5E7EB", size=14),
-    ))
-    fig.update_layout(
-        height=220, margin=dict(l=10, r=40, t=20, b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(range=[0, 100], showgrid=False, showticklabels=False, zeroline=False),
-        yaxis=dict(tickfont=dict(color="#E5E7EB", size=14)),
-        font=dict(family="Inter, sans-serif"),
-    )
-    return fig
 
 
 @st.cache_resource
@@ -348,15 +327,8 @@ if st.button("Predict relapse risk", type="primary"):
             unsafe_allow_html=True,
         )
 
-        st.plotly_chart(probability_chart(result["probabilities"]), width="stretch")
-
         if not result["used_facility"] and facility is not None:
             st.caption(
                 "This facility wasn't in the model's training data, so the estimate uses "
                 "region and child details only."
             )
-
-        st.caption(
-            "Estimated chance of no relapse, relapse to MAM, or relapse to SAM within 6 months "
-            "of discharge, based on patterns learned from past cases in this program."
-        )
