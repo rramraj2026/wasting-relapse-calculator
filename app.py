@@ -10,7 +10,10 @@ ARTIFACT_PATH = os.path.join(os.path.dirname(__file__), "artifacts", "model_bund
 
 CLASS_COLORS = {"No relapse": "#22C55E", "Relapse to MAM": "#FB923C", "Relapse to SAM": "#F87171"}
 CARD_BG = "#111827"
-SECTION_ACCENTS = {"admission": "#3B82F6", "discharge": "#8B5CF6"}
+SECTION_ACCENTS = {"admission": "#3B82F6", "discharge": "#8B5CF6", "food": "#22C55E"}
+
+IPC_MAP = {"Phase 1/2 - minimal/stressed": 1, "Phase 3 - crisis": 2, "Phase 4/5 - emergency/famine": 3}
+HUNGER_MAP = {"Little to no hunger": 1, "Moderate household hunger": 2, "Severe household hunger": 3}
 
 
 def hex_to_rgba(hex_color, alpha):
@@ -215,8 +218,15 @@ with c2:
 admission_vals = [facility, sex, cage_adm, sammam, region, mat_edu, whz_adm, muac_adm, haz_adm, hndwash_label, prev_wast]
 section_card_close(sum(v is not None for v in admission_vals), len(admission_vals), SECTION_ACCENTS["admission"])
 
+st.subheader("Household food security")
+section_card_open(SECTION_ACCENTS["food"])
+ipc_phase_label = st.selectbox("IPC food security phase", list(IPC_MAP.keys()), index=None, placeholder="Select...")
+hunger_scale_label = st.selectbox("Household hunger scale", list(HUNGER_MAP.keys()), index=None, placeholder="Select...")
+
+food_vals = [ipc_phase_label, hunger_scale_label]
+section_card_close(sum(v is not None for v in food_vals), len(food_vals), SECTION_ACCENTS["food"])
+
 st.header("At discharge")
-st.caption("These values are only known once the child has completed treatment and is discharged.")
 section_card_open(SECTION_ACCENTS["discharge"])
 c5, c6 = st.columns(2)
 with c5:
@@ -233,8 +243,10 @@ with c6:
         min_value=float(rng["whz_T0"][0]), max_value=float(rng["whz_T0"][1]),
         value=None, placeholder=f"e.g. {rng['whz_T0'][0]:.1f} to {rng['whz_T0'][1]:.1f}")
     whz_tag(whz_t0)
+    oral_rehydration_label = st.selectbox(
+        "Oral rehydration given during treatment", ["Yes", "No"], index=None, placeholder="Select...")
 
-discharge_vals = [dur_trt, diar_t1, whz_t0]
+discharge_vals = [dur_trt, diar_t1, whz_t0, oral_rehydration_label]
 section_card_close(sum(v is not None for v in discharge_vals), len(discharge_vals), SECTION_ACCENTS["discharge"])
 
 st.divider()
@@ -252,9 +264,12 @@ if st.button("Predict relapse risk", type="primary"):
         "haz_adm_clean": haz_adm,
         "hndwash": None if hndwash_label is None else (1 if hndwash_label == "Yes" else 0),
         "prev_wast_treat": prev_wast,
+        "ipc_phase_num": IPC_MAP.get(ipc_phase_label),
+        "hunger_scale": HUNGER_MAP.get(hunger_scale_label),
         "dur_trt": dur_trt,
         "diar_T1": diar_t1,
         "whz_T0": whz_t0,
+        "medication_oral_rehydration": None if oral_rehydration_label is None else (1 if oral_rehydration_label == "Yes" else 0),
     }
 
     field_labels = {
@@ -264,8 +279,10 @@ if st.button("Predict relapse risk", type="primary"):
         "whz_adm_clean": "WHZ at admission", "MUACofchildatadmission": "MUAC at admission",
         "haz_adm_clean": "HAZ at admission", "hndwash": "Household handwashing access",
         "prev_wast_treat": "Previous wasting treatment history",
+        "ipc_phase_num": "IPC food security phase", "hunger_scale": "Household hunger scale",
         "dur_trt": "Duration of treatment", "diar_T1": "Diarrhea at discharge",
         "whz_T0": "WHZ at discharge",
+        "medication_oral_rehydration": "Oral rehydration given during treatment",
     }
     # Facility is optional, left blank, the model falls back to the population-average
     # facility risk instead of blocking the prediction.

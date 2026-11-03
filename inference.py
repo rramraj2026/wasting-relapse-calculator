@@ -65,6 +65,9 @@ def build_feature_row(raw_input, bundle, use_facility):
         'sex_male': 1 if raw_input['sex'] == 'male' else 0,
         'prev_wast_treat_yes': 1 if raw_input['prev_wast_treat'] == 'yes' else 0,
         'mat_edu_dichot_none': 1 if raw_input['mat_edu_dichot'] == 'none' else 0,
+        'ipc_phase_num': int(raw_input['ipc_phase_num']),
+        'hunger_scale': int(raw_input['hunger_scale']),
+        'medication_oral_rehydration': int(raw_input['medication_oral_rehydration']),
     }
     for region in ['Bari', 'Bay', 'Galgadud', 'Hiran', 'Lower_Juba', 'Mudug']:
         row[f'RegioCEGn_{region}'] = 1 if raw_input['RegioCEGn'] == region else 0
