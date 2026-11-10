@@ -106,8 +106,14 @@ def predict_relapse_risk(raw_input, bundle):
     probabilities = {name: float(p) for name, p in zip(class_names, proba)}
     predicted_class = class_names[int(np.argmax(proba))]
 
+    predicted_whz = None
+    if predicted_class != 'No relapse' and 'model_whz_facility_given' in bundle:
+        whz_model = bundle['model_whz_facility_given'] if use_facility else bundle['model_whz_facility_blank']
+        predicted_whz = float(whz_model.predict(X)[0])
+
     return {
         'probabilities': probabilities,
         'predicted_class': predicted_class,
         'used_facility': use_facility,
+        'predicted_whz': predicted_whz,
     }

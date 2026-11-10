@@ -5,5 +5,6 @@ artifacts/model_bundle_baseline_backup.joblib
 artifacts/model_bundle_pre_2026_10_27_update.joblib
 artifacts/model_bundle_pre_multiclass_20261103.joblib
 artifacts/model_bundle_pre_addback_20261103.joblib
+artifacts/model_bundle_pre_whz_20261110.joblib
 .DS_Store
 screenshots/

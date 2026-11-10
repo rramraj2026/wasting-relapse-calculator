@@ -322,6 +322,7 @@ if st.button("Predict relapse risk", type="primary"):
                         {predicted}
                     </span>
                 </div>
+                {f'<div style="margin-top:14px; color:#9AA5B8; font-size:14px;">Estimated WHZ if this happens: <strong style="color:#E5E7EB;">{result["predicted_whz"]:.1f}</strong></div>' if result["predicted_whz"] is not None else ''}
             </div>
             """,
             unsafe_allow_html=True,
