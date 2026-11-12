@@ -346,13 +346,9 @@ if predict_relapse_clicked or predict_whz_clicked:
                     f"""
                     <div style="background:{CARD_BG}; border:1px solid rgba(255,255,255,0.08);
                         border-radius:18px; padding:28px 10px; margin-top:8px; text-align:center;">
-                        <div style="color:#9AA5B8; font-size:14px;">
-                            If this child relapses (predicted: <strong style="color:#E5E7EB;">{predicted}</strong>)
+                        <div style="font-size:14px; color:#9AA5B8;">
+                            Estimated WHZ: <strong style="font-size:20px; color:{color};">{result["predicted_whz"]:.1f}</strong>
                         </div>
-                        <div style="margin-top:10px; font-size:32px; font-weight:700; color:{color};">
-                            {result["predicted_whz"]:.1f}
-                        </div>
-                        <div style="margin-top:4px; color:#9AA5B8; font-size:13px;">Estimated WHZ</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
