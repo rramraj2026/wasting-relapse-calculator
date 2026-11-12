@@ -230,61 +230,67 @@ section_card_close(sum(v is not None for v in discharge_vals), len(discharge_val
 
 st.divider()
 
-if st.button("Predict relapse risk", type="primary"):
-    raw_input = {
-        "facility": facility,
-        "sex": sex,
-        "cage_adm": cage_adm,
-        "SAMMAM": sammam,
-        "RegioCEGn": region,
-        "mat_edu_dichot": mat_edu,
-        "whz_adm_clean": whz_adm,
-        "MUACofchildatadmission": muac_adm,
-        "haz_adm_clean": haz_adm,
-        "hndwash": None if hndwash_label is None else (1 if hndwash_label == "Yes" else 0),
-        "prev_wast_treat": prev_wast,
-        "ipc_phase_num": IPC_MAP.get(ipc_phase_label),
-        "hunger_scale": HUNGER_MAP.get(hunger_scale_label),
-        "dur_trt": dur_trt,
-        "diar_T1": diar_t1,
-        "whz_T0": whz_t0,
-        "medication_oral_rehydration": None if oral_rehydration_label is None else (1 if oral_rehydration_label == "Yes" else 0),
-    }
+raw_input = {
+    "facility": facility,
+    "sex": sex,
+    "cage_adm": cage_adm,
+    "SAMMAM": sammam,
+    "RegioCEGn": region,
+    "mat_edu_dichot": mat_edu,
+    "whz_adm_clean": whz_adm,
+    "MUACofchildatadmission": muac_adm,
+    "haz_adm_clean": haz_adm,
+    "hndwash": None if hndwash_label is None else (1 if hndwash_label == "Yes" else 0),
+    "prev_wast_treat": prev_wast,
+    "ipc_phase_num": IPC_MAP.get(ipc_phase_label),
+    "hunger_scale": HUNGER_MAP.get(hunger_scale_label),
+    "dur_trt": dur_trt,
+    "diar_T1": diar_t1,
+    "whz_T0": whz_t0,
+    "medication_oral_rehydration": None if oral_rehydration_label is None else (1 if oral_rehydration_label == "Yes" else 0),
+}
 
-    field_labels = {
-        "facility": "Facility", "sex": "Child's sex", "cage_adm": "Child's age at admission",
-        "SAMMAM": "Admission type", "RegioCEGn": "Region",
-        "mat_edu_dichot": "Maternal education (ever attended school?)",
-        "whz_adm_clean": "WHZ at admission", "MUACofchildatadmission": "MUAC at admission",
-        "haz_adm_clean": "HAZ at admission", "hndwash": "Household handwashing access",
-        "prev_wast_treat": "Previous wasting treatment history",
-        "ipc_phase_num": "IPC food security phase", "hunger_scale": "Household hunger scale",
-        "dur_trt": "Duration of treatment", "diar_T1": "Diarrhea at discharge",
-        "whz_T0": "WHZ at discharge",
-        "medication_oral_rehydration": "Oral rehydration given during treatment",
-    }
-    # Facility is optional, left blank, the model falls back to the population-average
-    # facility risk instead of blocking the prediction.
-    missing = [field_labels[k] for k, v in raw_input.items() if v is None and k != "facility"]
+field_labels = {
+    "facility": "Facility", "sex": "Child's sex", "cage_adm": "Child's age at admission",
+    "SAMMAM": "Admission type", "RegioCEGn": "Region",
+    "mat_edu_dichot": "Maternal education (ever attended school?)",
+    "whz_adm_clean": "WHZ at admission", "MUACofchildatadmission": "MUAC at admission",
+    "haz_adm_clean": "HAZ at admission", "hndwash": "Household handwashing access",
+    "prev_wast_treat": "Previous wasting treatment history",
+    "ipc_phase_num": "IPC food security phase", "hunger_scale": "Household hunger scale",
+    "dur_trt": "Duration of treatment", "diar_T1": "Diarrhea at discharge",
+    "whz_T0": "WHZ at discharge",
+    "medication_oral_rehydration": "Oral rehydration given during treatment",
+}
+# Facility is optional, left blank, the model falls back to the population-average
+# facility risk instead of blocking the prediction.
+missing = [field_labels[k] for k, v in raw_input.items() if v is None and k != "facility"]
 
-    range_check_fields = {
-        "cage_adm": "cage_adm",
-        "whz_adm_clean": "whz_adm_clean",
-        "MUACofchildatadmission": "MUACofchildatadmission",
-        "haz_adm_clean": "haz_adm_clean",
-        "dur_trt": "dur_trt",
-        "whz_T0": "whz_T0",
-    }
-    out_of_range = []
-    if not missing:
-        for field_key, range_key in range_check_fields.items():
-            value = raw_input[field_key]
-            lo, hi = rng[range_key]
-            if value < lo or value > hi:
-                out_of_range.append(
-                    f"{field_labels[field_key]} = {value} (valid range: {lo:.1f} to {hi:.1f})"
-                )
+range_check_fields = {
+    "cage_adm": "cage_adm",
+    "whz_adm_clean": "whz_adm_clean",
+    "MUACofchildatadmission": "MUACofchildatadmission",
+    "haz_adm_clean": "haz_adm_clean",
+    "dur_trt": "dur_trt",
+    "whz_T0": "whz_T0",
+}
+out_of_range = []
+if not missing:
+    for field_key, range_key in range_check_fields.items():
+        value = raw_input[field_key]
+        lo, hi = rng[range_key]
+        if value < lo or value > hi:
+            out_of_range.append(
+                f"{field_labels[field_key]} = {value} (valid range: {lo:.1f} to {hi:.1f})"
+            )
 
+col_relapse, col_whz = st.columns(2)
+with col_relapse:
+    predict_relapse_clicked = st.button("Predict Relapse", type="primary", width="stretch")
+with col_whz:
+    predict_whz_clicked = st.button("Predict WHZ", type="primary", width="stretch")
+
+if predict_relapse_clicked or predict_whz_clicked:
     if missing:
         st.error(
             "Please fill in every field before predicting, the model isn't allowed to guess. "
@@ -303,33 +309,56 @@ if st.button("Predict relapse risk", type="primary"):
         glow_bright = hex_to_rgba(color, 0.5)
         icon = {"No relapse": "✅", "Relapse to MAM": "⚠️", "Relapse to SAM": "🔴"}[predicted]
 
-        st.markdown(
-            f"""
-            <style>
-            @keyframes pulseGlowRelapse {{
-                0%   {{ box-shadow: 0 0 25px {glow_dim}; }}
-                50%  {{ box-shadow: 0 0 60px {glow_bright}; }}
-                100% {{ box-shadow: 0 0 25px {glow_dim}; }}
-            }}
-            </style>
-            <div style="background:{CARD_BG}; border:1px solid rgba(255,255,255,0.08);
-                border-radius:18px; padding:28px 10px 10px 10px; margin-top:8px; text-align:center;
-                animation: pulseGlowRelapse 2.4s ease-in-out infinite;">
-                <div style="font-size:40px;">{icon}</div>
-                <div style="margin-top:10px;">
-                    <span style="background-color:{color}; color:#0B1220;
-                        padding:6px 22px; border-radius:999px; font-weight:700; font-size:18px;">
-                        {predicted}
-                    </span>
+        if predict_relapse_clicked:
+            st.markdown(
+                f"""
+                <style>
+                @keyframes pulseGlowRelapse {{
+                    0%   {{ box-shadow: 0 0 25px {glow_dim}; }}
+                    50%  {{ box-shadow: 0 0 60px {glow_bright}; }}
+                    100% {{ box-shadow: 0 0 25px {glow_dim}; }}
+                }}
+                </style>
+                <div style="background:{CARD_BG}; border:1px solid rgba(255,255,255,0.08);
+                    border-radius:18px; padding:28px 10px 10px 10px; margin-top:8px; text-align:center;
+                    animation: pulseGlowRelapse 2.4s ease-in-out infinite;">
+                    <div style="font-size:40px;">{icon}</div>
+                    <div style="margin-top:10px;">
+                        <span style="background-color:{color}; color:#0B1220;
+                            padding:6px 22px; border-radius:999px; font-weight:700; font-size:18px;">
+                            {predicted}
+                        </span>
+                    </div>
                 </div>
-                {f'<div style="margin-top:14px; color:#9AA5B8; font-size:14px;">Estimated WHZ: <strong style="color:#E5E7EB;">{result["predicted_whz"]:.1f}</strong></div>' if result["predicted_whz"] is not None else ''}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if not result["used_facility"] and facility is not None:
-            st.caption(
-                "This facility wasn't in the model's training data, so the estimate uses "
-                "region and child details only."
+                """,
+                unsafe_allow_html=True,
             )
+
+            if not result["used_facility"] and facility is not None:
+                st.caption(
+                    "This facility wasn't in the model's training data, so the estimate uses "
+                    "region and child details only."
+                )
+
+        if predict_whz_clicked:
+            if result["predicted_whz"] is not None:
+                st.markdown(
+                    f"""
+                    <div style="background:{CARD_BG}; border:1px solid rgba(255,255,255,0.08);
+                        border-radius:18px; padding:28px 10px; margin-top:8px; text-align:center;">
+                        <div style="color:#9AA5B8; font-size:14px;">
+                            If this child relapses (predicted: <strong style="color:#E5E7EB;">{predicted}</strong>)
+                        </div>
+                        <div style="margin-top:10px; font-size:32px; font-weight:700; color:{color};">
+                            {result["predicted_whz"]:.1f}
+                        </div>
+                        <div style="margin-top:4px; color:#9AA5B8; font-size:13px;">Estimated WHZ</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.info(
+                    f"This child is predicted as “{predicted}”, so no WHZ estimate applies, "
+                    "that number is only shown for children predicted to relapse."
+                )
